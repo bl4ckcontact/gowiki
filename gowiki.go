@@ -7,28 +7,23 @@ import (
     "log"
     "net/url"
     "strings"
-//    "encoding/json"
     "io/ioutil"
-    "encoding/json")
+    "encoding/json"
+    )
 
 const API = "http://en.wikipedia.org/w/api.php"
 
 type Response struct {
     Query struct {
-        Pages struct {
-            pageID struct {
-                extract string  `json:"extract"`
-                ns      float64 `json:"ns"`
-                pageid  float64 `json:"pageid"`
-                title   string  `json:"title"`
-            } `json:"pageID"`
-        } `json:"pages"`
+        Pages map[string]PageID `json:"pages`
     } `json:"query"`
-    Warnings struct {
-        Query struct {
-            _ string `json:"*"`
-        } `json:"query"`
-    } `json:"warnings"`
+}
+
+type PageID struct {
+    Extract string  `json:"extract"`
+    ns      float64 `json:"ns"`
+    pageid  float64 `json:"pageid"`
+    title   string  `json:"title"`
 }
 
 
@@ -48,6 +43,7 @@ func main() {
         searchQuery = strings.Join(os.Args[1:], "")
     }
 
+    // API URL builder
     u, err := url.Parse(API)
     if err != nil {
         log.Fatal(err)
@@ -62,29 +58,39 @@ func main() {
     parameters.Add("exintro", "")
     parameters.Add("explaintext", "")
     parameters.Add("exsectionformat", "plain")
+    parameters.Add("indexpageids", "true")
     u.RawQuery = parameters.Encode()
+
 
     // API http request
     res, err := http.Get(u.String())
     if err != nil {
         log.Fatal(err)
     }
+    if res.StatusCode != 200 {
+        log.Fatal("Unexpected response. (Status code received: ", res.StatusCode)
+    }
 
+    // Read JSON response
     jsonResponse, err := ioutil.ReadAll(res.Body)
-
     if err != nil {
         log.Fatalln(err)
     }
+    defer res.Body.Close()
 
+    // Unmarshal JSON
     var jsonData []Response
-
     err = json.Unmarshal([]byte(jsonResponse), &jsonData)
+    q := Response{}
+    err = json.Unmarshal([]byte(jsonResponse), &q)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
 
-    var r map[string]interface{}
-    json.Unmarshal([]byte(jsonResponse), &r)
-    fmt.Println(r["query"].(map[string]interface{})["pages"])
-
-    if res.StatusCode != 200 {
-        log.Fatal("Unexpected response. (Status code received: ", res.StatusCode)
+    // Print resulting summary
+    for _, p := range q.Query.Pages {
+        fmt.Println("\nWikipedia: \n\n", strings.Replace(p.Extract, "\n", "\n\n", -1))
+        return
     }
 }
